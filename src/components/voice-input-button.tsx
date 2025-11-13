@@ -16,12 +16,10 @@ export function VoiceInputButton({
 }: VoiceInputButtonProps) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    setIsMounted(true);
-
+    // This code now only runs on the client, after the component has mounted.
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       setIsSupported(true);
@@ -31,44 +29,36 @@ export function VoiceInputButton({
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognitionRef.current = recognition;
+
+      const handleResult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[0][0].transcript;
+        onTranscript(transcript);
+        setIsListening(false);
+      };
+  
+      const handleError = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error', event.error);
+        setIsListening(false);
+      };
+  
+      const handleEnd = () => {
+        setIsListening(false);
+      };
+  
+      recognition.addEventListener('result', handleResult);
+      recognition.addEventListener('error', handleError);
+      recognition.addEventListener('end', handleEnd);
+  
+      return () => {
+        recognition.removeEventListener('result', handleResult);
+        recognition.removeEventListener('error', handleError);
+        recognition.removeEventListener('end', handleEnd);
+        recognition.abort();
+      };
     } else {
       setIsSupported(false);
     }
-
-    return () => {
-      recognitionRef.current?.abort();
-    };
-  }, [lang]);
-
-  useEffect(() => {
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-
-    const handleResult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      onTranscript(transcript);
-      setIsListening(false);
-    };
-
-    const handleError = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Speech recognition error', event.error);
-      setIsListening(false);
-    };
-
-    const handleEnd = () => {
-      setIsListening(false);
-    };
-
-    recognition.addEventListener('result', handleResult);
-    recognition.addEventListener('error', handleError);
-    recognition.addEventListener('end', handleEnd);
-
-    return () => {
-      recognition.removeEventListener('result', handleResult);
-      recognition.removeEventListener('error', handleError);
-      recognition.removeEventListener('end', handleEnd);
-    };
-  }, [onTranscript]);
+  }, [lang, onTranscript]);
 
   const handleToggleListening = () => {
     if (!recognitionRef.current) return;
@@ -76,26 +66,15 @@ export function VoiceInputButton({
     if (isListening) {
       recognitionRef.current.stop();
     } else {
-      recognitionRef.current.start();
-      setIsListening(true);
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsListening(false);
+      }
     }
   };
-
-  if (!isMounted) {
-    // Render a placeholder or nothing on the server and initial client render
-    return (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled
-          className="text-muted-foreground/50"
-          aria-label="Voice input initializing"
-        >
-          <MicOff className="h-4 w-4" />
-        </Button>
-    );
-  }
 
   if (!isSupported) {
     return (
@@ -114,7 +93,7 @@ export function VoiceInputButton({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Voice input is not supported in your browser.</p>
+            <p>Voice input not supported in your browser.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
