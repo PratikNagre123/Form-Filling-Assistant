@@ -23,6 +23,8 @@ import {
   ArrowRight,
   Check,
   FileUp,
+  FileCode,
+  Newspaper,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -83,15 +85,23 @@ const fieldConfig: Record<
 };
 
 export function FormAssistant() {
+  const [formType, setFormType] = useState<"default" | "custom" | null>(null);
   const [step, setStep] = useState(1);
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docPreview, setDocPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [customFormFile, setCustomFormFile] = useState<File | null>(null);
+  const [customFormPreview, setCustomFormPreview] = useState<string | null>(null);
+  const [isExtractingSchema, setIsExtractingSchema] = useState(false);
+  const [extractedSchema, setExtractedSchema] = useState<string[] | null>(null);
+
+
   const { toast } = useToast();
   const docInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const customFormInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -130,6 +140,22 @@ export function FormAssistant() {
         setPhotoPreview(reader.result as string);
       };
       reader.readAsDataURL(selectedFile);
+    }
+  };
+  
+  const handleCustomFormFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      setCustomFormFile(selectedFile);
+      if (selectedFile.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setCustomFormPreview(reader.result as string);
+        };
+        reader.readAsDataURL(selectedFile);
+      } else {
+        setCustomFormPreview(null);
+      }
     }
   };
 
@@ -231,6 +257,28 @@ export function FormAssistant() {
     if(photoInputRef.current) photoInputRef.current.value = "";
   }
   
+  const clearCustomFormPreview = () => {
+    setCustomFormFile(null);
+    setCustomFormPreview(null);
+    if(customFormInputRef.current) customFormInputRef.current.value = "";
+  };
+  
+  const handleExtractSchema = async () => {
+    if (!customFormFile) return;
+    setIsExtractingSchema(true);
+    // This will be implemented in a future step
+    // For now, we simulate an API call and display mock data
+    setTimeout(() => {
+        const mockSchema = ["Full Name", "Email Address", "Phone Number", "Home Address", "Signature"];
+        setExtractedSchema(mockSchema);
+        setIsExtractingSchema(false);
+        toast({
+            title: "Form Fields Extracted",
+            description: "Next, you'll upload documents to fill these fields.",
+        });
+    }, 2000);
+  };
+  
   const renderFields = () => {
     return allFields.map((fieldName) => {
       const { icon: Icon, label } = fieldConfig[fieldName];
@@ -280,7 +328,7 @@ export function FormAssistant() {
       <h3 className="font-semibold text-lg flex items-center"><Icon className="h-5 w-5 mr-2 text-primary"/>{title}</h3>
       <p className="text-sm text-muted-foreground -mt-2">{description}</p>
       <label
-        htmlFor={title.toLowerCase().replace(" ", "-")}
+        htmlFor={title.toLowerCase().replace(/[\s\(\)]+/g, "-")}
         className={cn(
           "flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
           { "border-primary bg-muted/20": !preview && !file }
@@ -320,10 +368,81 @@ export function FormAssistant() {
             </p>
           </div>
         )}
-        <Input ref={inputRef} id={title.toLowerCase().replace(" ", "-")} type="file" className="hidden" onChange={handleFileChange} accept={accept} />
+        <Input ref={inputRef} id={title.toLowerCase().replace(/[\s\(\)]+/g, "-")} type="file" className="hidden" onChange={handleFileChange} accept={accept} />
       </label>
     </div>
   );
+  
+  if (!formType) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Choose Your Form</CardTitle>
+          <CardDescription>Select a standard form or upload your own to begin.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+          <Button variant="outline" className="h-auto p-6 flex flex-col gap-4 items-center justify-center" onClick={() => setFormType('default')}>
+              <Newspaper className="h-10 w-10 text-primary" />
+              <span className="text-lg font-semibold">Use Default Form</span>
+              <span className="text-sm text-muted-foreground text-center">Fill out our standard application form.</span>
+          </Button>
+          <Button variant="outline" className="h-auto p-6 flex flex-col gap-4 items-center justify-center" onClick={() => setFormType('custom')}>
+              <FileCode className="h-10 w-10 text-primary" />
+              <span className="text-lg font-semibold">Upload Custom Form</span>
+              <span className="text-sm text-muted-foreground text-center">Extract fields from your own PDF or image.</span>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (formType === 'custom') {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground mr-3 font-bold text-lg">1</div>
+                    Upload Custom Form
+                </CardTitle>
+                <CardDescription>Upload a PDF or an image of the form you want to fill out. We'll extract the fields for you.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {renderUploadCard(
+                    "Custom Form Document",
+                    "Upload the blank form here.",
+                    customFormFile,
+                    customFormPreview,
+                    handleCustomFormFileChange,
+                    clearCustomFormPreview,
+                    "image/*,application/pdf",
+                    FileCode,
+                    customFormInputRef
+                )}
+                {extractedSchema && (
+                    <div className="mt-6">
+                        <h3 className="font-semibold text-lg flex items-center mb-2"><Check className="h-5 w-5 mr-2 text-green-500"/>Extracted Fields</h3>
+                        <div className="p-4 bg-muted/50 rounded-lg">
+                            <ul className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                                {extractedSchema.map((field, index) => (
+                                    <li key={index} className="flex items-center">
+                                      <ArrowRight className="h-4 w-4 mr-2 text-primary/50"/>
+                                      {field}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter>
+                <Button onClick={handleExtractSchema} disabled={!customFormFile || isExtractingSchema || !!extractedSchema} className="w-full">
+                    {isExtractingSchema ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+                    {isExtractingSchema ? "Analyzing Form..." : "Extract Form Fields"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -439,6 +558,5 @@ export function FormAssistant() {
     </div>
   );
 }
-
 
     
