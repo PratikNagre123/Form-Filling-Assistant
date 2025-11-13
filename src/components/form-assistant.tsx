@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { extractDataAction } from "@/app/actions";
+import { extractDataAction, extractFormSchemaAction } from "@/app/actions";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -266,17 +266,36 @@ export function FormAssistant() {
   const handleExtractSchema = async () => {
     if (!customFormFile) return;
     setIsExtractingSchema(true);
-    // This will be implemented in a future step
-    // For now, we simulate an API call and display mock data
-    setTimeout(() => {
-        const mockSchema = ["Full Name", "Email Address", "Phone Number", "Home Address", "Signature"];
-        setExtractedSchema(mockSchema);
+
+    const reader = new FileReader();
+    reader.readAsDataURL(customFormFile);
+    reader.onload = async () => {
+        const dataUrl = reader.result as string;
+        const result = await extractFormSchemaAction(dataUrl);
+
+        setIsExtractingSchema(false);
+        if ('error' in result) {
+            toast({
+                variant: 'destructive',
+                title: 'Schema Extraction Failed',
+                description: result.error,
+            });
+        } else {
+            setExtractedSchema(result.fields);
+            toast({
+                title: 'Form Fields Extracted',
+                description: "Next, you'll upload documents to fill these fields.",
+            });
+        }
+    };
+    reader.onerror = () => {
         setIsExtractingSchema(false);
         toast({
-            title: "Form Fields Extracted",
-            description: "Next, you'll upload documents to fill these fields.",
+            variant: 'destructive',
+            title: 'File Read Error',
+            description: 'Could not read the selected file.',
         });
-    }, 2000);
+    };
   };
   
   const renderFields = () => {
