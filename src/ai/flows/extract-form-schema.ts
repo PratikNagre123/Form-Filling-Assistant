@@ -21,8 +21,13 @@ const ExtractFormSchemaInputSchema = z.object({
 export type ExtractFormSchemaInput = z.infer<typeof ExtractFormSchemaInputSchema>;
 
 
+const FormFieldSchema = z.object({
+    name: z.string().describe("The label of the identified form field (e.g., 'Full Name', 'Applicant Photo')."),
+    type: z.enum(['text', 'checkbox', 'photo', 'signature', 'date']).describe("The type of the form field."),
+});
+
 const ExtractFormSchemaOutputSchema = z.object({
-    fields: z.array(z.string()).describe("An array of strings, where each string is a field label identified in the form."),
+    fields: z.array(FormFieldSchema).describe("An array of objects, where each object represents a field identified in the form."),
 });
 export type ExtractFormSchemaOutput = z.infer<typeof ExtractFormSchemaOutputSchema>;
 
@@ -37,11 +42,17 @@ const extractFormSchemaPrompt = ai.definePrompt({
   output: {schema: ExtractFormSchemaOutputSchema},
   prompt: `You are an AI assistant that specializes in analyzing documents to identify and list all the input fields present in a form.
 
-  Analyze the provided document image or PDF. Identify every field that a user is meant to fill in. This includes text inputs, checkboxes, signature areas, and date fields.
+  Analyze the provided document image or PDF. Identify every field that a user is meant to fill in. This includes text inputs, checkboxes, signature areas, date fields, and photo placeholders.
 
-  Return a JSON object containing a single key "fields", which is an array of strings. Each string in the array should be the label of one identified form field.
+  Return a JSON object containing a single key "fields". This key should hold an array of objects, where each object has two properties:
+  1. "name": The label of the identified form field (e.g., "Full Name", "Date of Birth", "Applicant Photo").
+  2. "type": The type of the field. Use one of the following values: 'text', 'checkbox', 'photo', 'signature', 'date'.
 
-  Example labels: "Full Name", "Date of Birth", "Home Address", "Signature", "I agree to the terms".
+  - Use 'photo' for any area designated for a passport photo or other image.
+  - Use 'signature' for signature lines.
+  - Use 'date' for date fields.
+  - Use 'checkbox' for checkboxes.
+  - Use 'text' for all other text-based inputs (like name, address, etc.).
 
   Document:
   {{media url=documentDataUri}}
@@ -59,5 +70,3 @@ const extractFormSchemaFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

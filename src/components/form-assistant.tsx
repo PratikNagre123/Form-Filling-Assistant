@@ -26,6 +26,8 @@ import {
   FileCode,
   Newspaper,
   BookUser,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -52,6 +54,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractDataAction, extractFormSchemaAction, mapDocumentToFormAction } from "@/app/actions";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "./ui/checkbox";
 
 const formSchema = z.object({
   name: z.string().optional(),
@@ -63,6 +66,10 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+type FormField = {
+    name: string;
+    type: 'text' | 'checkbox' | 'photo' | 'signature' | 'date';
+};
 
 const allFields: (keyof FormValues)[] = [
   "name",
@@ -456,35 +463,35 @@ function CustomFormFlow() {
     const [customFormFile, setCustomFormFile] = useState<File | null>(null);
     const [customFormPreview, setCustomFormPreview] = useState<string | null>(null);
     const [isExtractingSchema, setIsExtractingSchema] = useState(false);
-    const [extractedSchema, setExtractedSchema] = useState<string[] | null>(null);
+    const [extractedSchema, setExtractedSchema] = useState<FormField[] | null>(null);
     
     const [docFile, setDocFile] = useState<File | null>(null);
     const [docPreview, setDocPreview] = useState<string | null>(null);
     const [isMapping, setIsMapping] = useState(false);
     
-    const [photoFile, setPhotoFile] = useState<File | null>(null);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    // State for photo fields
+    const [photoPreviews, setPhotoPreviews] = useState<Record<string, string | null>>({});
+    const photoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     const { toast } = useToast();
     const customFormInputRef = useRef<HTMLInputElement>(null);
     const docInputRef = useRef<HTMLInputElement>(null);
-    const photoInputRef = useRef<HTMLInputElement>(null);
     
     const form = useForm();
     const { formState: { errors }, watch } = form;
     const formValues = watch();
 
-    const isFormFilled = extractedSchema ? extractedSchema.every(field => !!formValues[field]) : false;
+    const isFormFilled = extractedSchema ? extractedSchema.filter(f => f.type !== 'photo').every(field => !!formValues[field.name]) : false;
 
     useEffect(() => {
         if (extractedSchema) {
             const defaultValues = extractedSchema.reduce((acc, field) => {
-                acc[field] = '';
+                acc[field.name] = field.type === 'checkbox' ? false : '';
                 return acc;
-            }, {} as Record<string, string>);
+            }, {} as Record<string, any>);
             form.reset(defaultValues);
             extractedSchema.forEach(field => {
-                form.register(field);
+                form.register(field.name);
             });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -522,15 +529,15 @@ function CustomFormFlow() {
         }
     };
 
-    const handlePhotoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = event.target.files?.[0];
-        if (selectedFile && selectedFile.type.startsWith("image/")) {
-            setPhotoFile(selectedFile);
+    const handlePhotoFileChange = (fieldName: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && file.type.startsWith("image/")) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setPhotoPreview(reader.result as string);
+                setPhotoPreviews(prev => ({...prev, [fieldName]: reader.result as string }));
+                form.setValue(fieldName, reader.result as string);
             };
-            reader.readAsDataURL(selectedFile);
+            reader.readAsDataURL(file);
         }
     };
     
@@ -546,10 +553,11 @@ function CustomFormFlow() {
         if (docInputRef.current) docInputRef.current.value = "";
     }
 
-    const clearPhotoPreview = () => {
-        setPhotoFile(null);
-        setPhotoPreview(null);
-        if (photoInputRef.current) photoInputRef.current.value = "";
+    const clearPhotoPreview = (fieldName: string) => {
+        setPhotoPreviews(prev => ({...prev, [fieldName]: null}));
+        form.setValue(fieldName, '');
+        const inputRef = photoInputRefs.current[fieldName];
+        if (inputRef) inputRef.value = "";
     }
 
     const handleExtractSchema = async () => {
@@ -591,12 +599,14 @@ function CustomFormFlow() {
     const handleMapDocument = async () => {
         if (!docFile || !extractedSchema) return;
         setIsMapping(true);
+        
+        const fieldNames = extractedSchema.map(f => f.name);
 
         const reader = new FileReader();
         reader.readAsDataURL(docFile);
         reader.onload = async () => {
             const dataUrl = reader.result as string;
-            const result = await mapDocumentToFormAction(dataUrl, extractedSchema);
+            const result = await mapDocumentToFormAction(dataUrl, fieldNames);
 
             setIsMapping(false);
             if ('error' in result) {
@@ -606,7 +616,6 @@ function CustomFormFlow() {
                     description: result.error,
                 });
             } else {
-                // We use reset to update all form values at once
                 form.reset(result.mappedData);
                 setStep(3);
                 toast({
@@ -640,32 +649,41 @@ function CustomFormFlow() {
 
         let y = 40;
 
-        if (photoPreview) {
-            try {
-                doc.addImage(photoPreview, 'JPEG', 140, y, 50, 50);
-                y += 60; // Add space after photo
-            } catch (error) {
-                console.error("Error adding image to PDF:", error);
-                toast({
-                    variant: "destructive",
-                    title: "PDF Error",
-                    description: "Failed to add the photo to the PDF."
-                });
-            }
-        }
-
         if (extractedSchema) {
-            extractedSchema.forEach((fieldName) => {
-                const fieldValue = data[fieldName];
-                if (fieldValue) {
+            // Handle photo placements first if any
+            const photoFields = extractedSchema.filter(f => f.type === 'photo');
+            photoFields.forEach((field, index) => {
+                const photoPreview = photoPreviews[field.name];
+                if (photoPreview) {
+                     try {
+                        // Simple positioning for now, can be improved
+                        const x = index % 2 === 0 ? 140 : 80; 
+                        if (index > 0 && index % 2 === 0) y += 60;
+                        doc.addImage(photoPreview, 'JPEG', x, y, 50, 50);
+                    } catch (error) {
+                        console.error("Error adding image to PDF:", error);
+                    }
+                }
+            });
+            if(photoFields.length > 0) y += 60;
+
+
+            extractedSchema.forEach((field) => {
+                const fieldValue = data[field.name];
+                if (field.type !== 'photo' && fieldValue) {
                     doc.setFont("helvetica", "bold");
-                    const label = fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
+                    const label = field.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
                     doc.text(`${label}:`, 20, y);
                     doc.setFont("helvetica", "normal");
                     
-                    const textDimensions = doc.getTextDimensions(fieldValue as string, { maxWidth: 110 });
-                    doc.text(fieldValue as string, 70, y, { maxWidth: 110 });
-                    y += textDimensions.h + 6;
+                    if(field.type === 'checkbox'){
+                        doc.text(fieldValue ? 'Yes' : 'No', 70, y);
+                        y += 10;
+                    } else {
+                        const textDimensions = doc.getTextDimensions(fieldValue as string, { maxWidth: 110 });
+                        doc.text(fieldValue as string, 70, y, { maxWidth: 110 });
+                        y += textDimensions.h + 6;
+                    }
                 }
             });
         }
@@ -682,9 +700,10 @@ function CustomFormFlow() {
         clearPreview: () => void,
         accept: string,
         Icon: LucideIcon,
-        inputRef: React.RefObject<HTMLInputElement>
+        inputRef: React.RefObject<HTMLInputElement>,
+        key?: string
       ) => (
-        <div className="space-y-4">
+        <div className="space-y-4" key={key}>
           <h3 className="font-semibold text-lg flex items-center"><Icon className="h-5 w-5 mr-2 text-primary"/>{title}</h3>
           <p className="text-sm text-muted-foreground -mt-2">{description}</p>
           <label
@@ -732,6 +751,43 @@ function CustomFormFlow() {
         </div>
     );
     
+    const renderPhotoUpload = (field: FormField) => (
+        <div className="space-y-4" key={field.name}>
+            <h3 className="font-semibold text-lg flex items-center"><Camera className="h-5 w-5 mr-2 text-primary"/>{field.name}</h3>
+            <label
+                htmlFor={field.name}
+                className={cn(
+                    "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                    { "border-primary bg-muted/20": !photoPreviews[field.name] }
+                )}
+            >
+                {photoPreviews[field.name] ? (
+                    <Image src={photoPreviews[field.name]!} alt={`${field.name} preview`} fill style={{objectFit:"contain"}} className="rounded-lg p-1"/>
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-4">
+                        <Upload className="w-8 h-8 mb-2 text-primary"/>
+                        <p className="text-sm font-semibold">Upload Photo</p>
+                        <p className="text-xs text-muted-foreground">Click or drag & drop</p>
+                    </div>
+                )}
+                {photoPreviews[field.name] && (
+                     <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 rounded-full z-10" onClick={(e) => { e.preventDefault(); clearPhotoPreview(field.name) }}>
+                        <X className="h-4 w-4" />
+                    </Button>
+                )}
+                <Input 
+                    ref={(el) => photoInputRefs.current[field.name] = el}
+                    id={field.name} 
+                    type="file" 
+                    className="hidden" 
+                    onChange={handlePhotoFileChange(field.name)} 
+                    accept="image/*"
+                />
+            </label>
+        </div>
+    );
+
+
     return (
         <div className="space-y-8">
             {/* Step 1: Upload Custom Form */}
@@ -810,33 +866,63 @@ function CustomFormFlow() {
                     <CardTitle className="flex items-center">
                         <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>3</div>
                         Review, Complete & Download
-                        {step > 3 && <Check className="ml-auto h-6 w-6 text-green-500" />}
                     </CardTitle>
-                    <CardDescription>Review the pre-filled data, complete any missing fields, and upload an optional photo.</CardDescription>
+                    <CardDescription>Review the pre-filled data, complete any missing fields, and upload any required photos.</CardDescription>
                 </CardHeader>
                 {step === 3 && (
                     <>
                         <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start">
-                                <div className="md:col-span-3 space-y-6">
-                                {extractedSchema && (
-                                    <Form {...form}>
-                                        <form className="space-y-4 p-4 border rounded-lg bg-background/50">
-                                            <h3 className="text-lg font-semibold -mb-2">Extracted Form Fields</h3>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                                                {extractedSchema.map((fieldName) => (
+                             <Form {...form}>
+                                <form className="space-y-6">
+                                    {extractedSchema && (
+                                        <div className="p-4 border rounded-lg bg-background/50 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                                            {extractedSchema.map((field) => {
+                                                if (field.type === 'photo') {
+                                                    return renderPhotoUpload(field);
+                                                }
+                                                
+                                                if (field.type === 'checkbox') {
+                                                    return (
+                                                        <FormField
+                                                            key={field.name}
+                                                            control={form.control}
+                                                            name={field.name}
+                                                            render={({ field: formField }) => (
+                                                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 sm:col-span-2">
+                                                                     <FormControl>
+                                                                        <Checkbox
+                                                                            checked={formField.value}
+                                                                            onCheckedChange={formField.onChange}
+                                                                        />
+                                                                    </FormControl>
+                                                                    <div className="space-y-1 leading-none">
+                                                                        <FormLabel className="capitalize text-base">
+                                                                            {field.name.toLowerCase().replace(/_/g, ' ')}
+                                                                        </FormLabel>
+                                                                    </div>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    )
+                                                }
+
+                                                return (
                                                     <FormField
-                                                        key={fieldName}
+                                                        key={field.name}
                                                         control={form.control}
-                                                        name={fieldName}
-                                                        render={({ field }) => (
+                                                        name={field.name}
+                                                        render={({ field: formField }) => (
                                                             <FormItem>
-                                                                <FormLabel className="text-muted-foreground capitalize">{fieldName.toLowerCase().replace(/_/g, ' ')}</FormLabel>
+                                                                <FormLabel className="text-muted-foreground capitalize">{field.name.toLowerCase().replace(/_/g, ' ')}</FormLabel>
                                                                 <FormControl>
                                                                     <div className="relative flex items-center">
-                                                                        <Input placeholder={`Enter ${fieldName.toLowerCase().replace(/_/g, ' ')}`} {...field} />
+                                                                        <Input 
+                                                                            placeholder={`Enter ${field.name.toLowerCase().replace(/_/g, ' ')}`} 
+                                                                            {...formField} 
+                                                                            type={field.type === 'date' ? 'date' : 'text'}
+                                                                        />
                                                                         <VoiceInputButton
-                                                                            onTranscript={(transcript) => form.setValue(fieldName, transcript, { shouldValidate: true })}
+                                                                            onTranscript={(transcript) => form.setValue(field.name, transcript, { shouldValidate: true })}
                                                                         />
                                                                     </div>
                                                                 </FormControl>
@@ -844,26 +930,12 @@ function CustomFormFlow() {
                                                             </FormItem>
                                                         )}
                                                     />
-                                                ))}
-                                            </div>
-                                        </form>
-                                    </Form>
-                                )}
-                                </div>
-                                <div className="md:col-span-2 space-y-4">
-                                    {renderUploadCard(
-                                        "Profile Photo (Optional)",
-                                        "Upload a passport-style photo.",
-                                        photoFile,
-                                        photoPreview,
-                                        handlePhotoFileChange,
-                                        clearPhotoPreview,
-                                        "image/*",
-                                        Camera,
-                                        photoInputRef
+                                                );
+                                            })}
+                                        </div>
                                     )}
-                                </div>
-                            </div>
+                                </form>
+                            </Form>
                         </CardContent>
                         <CardFooter>
                             <Button onClick={handleDownloadPdf} disabled={!isFormFilled} size="lg" className="w-full">
