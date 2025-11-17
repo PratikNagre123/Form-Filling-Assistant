@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,7 +49,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { extractDataAction, extractFormSchemaAction } from "@/app/actions";
+import { extractDataAction, extractFormSchemaAction, mapDocumentToFormAction } from "@/app/actions";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { cn } from "@/lib/utils";
 
@@ -209,12 +209,13 @@ function DefaultFormFlow() {
         }
 
         allFields.forEach((key) => {
-            if (data[key]) {
+            const fieldData = data[key];
+            if (fieldData) {
                 doc.setFont("helvetica", "bold");
                 doc.text(`${fieldConfig[key].label}:`, 20, y);
                 doc.setFont("helvetica", "normal");
-                const textDimensions = doc.getTextDimensions(data[key] as string, { maxWidth: 110 });
-                doc.text(data[key] as string, 70, y, { maxWidth: 110 });
+                const textDimensions = doc.getTextDimensions(fieldData, { maxWidth: 110 });
+                doc.text(fieldData, 70, y, { maxWidth: 110 });
                 y += textDimensions.h + 6;
             }
         });
@@ -456,10 +457,11 @@ function CustomFormFlow() {
     const [customFormPreview, setCustomFormPreview] = useState<string | null>(null);
     const [isExtractingSchema, setIsExtractingSchema] = useState(false);
     const [extractedSchema, setExtractedSchema] = useState<string[] | null>(null);
-    const [isFilling, setIsFilling] = useState(false);
     
     const [docFile, setDocFile] = useState<File | null>(null);
     const [docPreview, setDocPreview] = useState<string | null>(null);
+    const [isMapping, setIsMapping] = useState(false);
+    
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -468,15 +470,25 @@ function CustomFormFlow() {
     const docInputRef = useRef<HTMLInputElement>(null);
     const photoInputRef = useRef<HTMLInputElement>(null);
     
-    // Using a dynamic schema with react-hook-form
-    const defaultValues = extractedSchema ? extractedSchema.reduce((acc, field) => {
-        acc[field] = '';
-        return acc;
-    }, {} as Record<string, string>) : {};
+    const form = useForm();
+    const { formState: { errors }, watch } = form;
+    const formValues = watch();
 
-    const form = useForm({
-        defaultValues
-    });
+    const isFormFilled = extractedSchema ? extractedSchema.every(field => !!formValues[field]) : false;
+
+    useEffect(() => {
+        if (extractedSchema) {
+            const defaultValues = extractedSchema.reduce((acc, field) => {
+                acc[field] = '';
+                return acc;
+            }, {} as Record<string, string>);
+            form.reset(defaultValues);
+            extractedSchema.forEach(field => {
+                form.register(field);
+            });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [extractedSchema]);
     
     const handleCustomFormFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
@@ -493,12 +505,52 @@ function CustomFormFlow() {
             }
         }
     };
+
+    const handleDocFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0];
+        if (selectedFile) {
+            setDocFile(selectedFile);
+            if (selectedFile.type.startsWith("image/")) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setDocPreview(reader.result as string);
+                };
+                reader.readAsDataURL(selectedFile);
+            } else {
+                setDocPreview(null); // No preview for non-image files like PDF
+            }
+        }
+    };
+
+    const handlePhotoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0];
+        if (selectedFile && selectedFile.type.startsWith("image/")) {
+            setPhotoFile(selectedFile);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPhotoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(selectedFile);
+        }
+    };
     
     const clearCustomFormPreview = () => {
         setCustomFormFile(null);
         setCustomFormPreview(null);
         if(customFormInputRef.current) customFormInputRef.current.value = "";
     };
+
+    const clearDocPreview = () => {
+        setDocFile(null);
+        setDocPreview(null);
+        if (docInputRef.current) docInputRef.current.value = "";
+    }
+
+    const clearPhotoPreview = () => {
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        if (photoInputRef.current) photoInputRef.current.value = "";
+    }
 
     const handleExtractSchema = async () => {
         if (!customFormFile) return;
@@ -519,19 +571,10 @@ function CustomFormFlow() {
                 });
             } else {
                 setExtractedSchema(result.fields);
-                const defaultVals = result.fields.reduce((acc, field) => {
-                    acc[field] = '';
-                    return acc;
-                }, {} as Record<string, string>);
-
-                form.reset(defaultVals);
-                result.fields.forEach(field => {
-                    form.register(field);
-                });
                 setStep(2);
                 toast({
                     title: 'Form Fields Extracted',
-                    description: "Next, you'll upload documents to fill these fields.",
+                    description: "Next, upload a document to fill these fields automatically.",
                 });
             }
         };
@@ -543,6 +586,91 @@ function CustomFormFlow() {
                 description: 'Could not read the selected file.',
             });
         };
+    };
+
+    const handleMapDocument = async () => {
+        if (!docFile || !extractedSchema) return;
+        setIsMapping(true);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(docFile);
+        reader.onload = async () => {
+            const dataUrl = reader.result as string;
+            const result = await mapDocumentToFormAction(dataUrl, extractedSchema);
+
+            setIsMapping(false);
+            if ('error' in result) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Auto-fill Failed',
+                    description: result.error,
+                });
+            } else {
+                // We use reset to update all form values at once
+                form.reset(result.mappedData);
+                setStep(3);
+                toast({
+                    title: 'Form Pre-filled',
+                    description: 'Please review the data and complete any missing fields.',
+                });
+            }
+        };
+        reader.onerror = () => {
+            setIsMapping(false);
+            toast({
+                variant: 'destructive',
+                title: 'File Read Error',
+                description: 'Could not read the source document file.',
+            });
+        };
+    };
+
+    const handleDownloadPdf = () => {
+        const doc = new jsPDF();
+        const data = form.getValues();
+
+        doc.setFontSize(22);
+        const primaryColorHsl = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+        const colorString = `hsl(${primaryColorHsl.split(' ').join(',')})`;
+        doc.setTextColor(colorString);
+        doc.text("Custom Form Data", 20, 20);
+        
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+
+        let y = 40;
+
+        if (photoPreview) {
+            try {
+                doc.addImage(photoPreview, 'JPEG', 140, y, 50, 50);
+                y += 60; // Add space after photo
+            } catch (error) {
+                console.error("Error adding image to PDF:", error);
+                toast({
+                    variant: "destructive",
+                    title: "PDF Error",
+                    description: "Failed to add the photo to the PDF."
+                });
+            }
+        }
+
+        if (extractedSchema) {
+            extractedSchema.forEach((fieldName) => {
+                const fieldValue = data[fieldName];
+                if (fieldValue) {
+                    doc.setFont("helvetica", "bold");
+                    const label = fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
+                    doc.text(`${label}:`, 20, y);
+                    doc.setFont("helvetica", "normal");
+                    
+                    const textDimensions = doc.getTextDimensions(fieldValue as string, { maxWidth: 110 });
+                    doc.text(fieldValue as string, 70, y, { maxWidth: 110 });
+                    y += textDimensions.h + 6;
+                }
+            });
+        }
+
+        doc.save("custom-form-data.pdf");
     };
 
     const renderUploadCard = (
@@ -606,6 +734,7 @@ function CustomFormFlow() {
     
     return (
         <div className="space-y-8">
+            {/* Step 1: Upload Custom Form */}
             <Card className={cn("transition-all duration-500", step < 1 && "opacity-50")}>
                 <CardHeader>
                     <CardTitle className="flex items-center">
@@ -640,51 +769,112 @@ function CustomFormFlow() {
                 )}
             </Card>
 
+            {/* Step 2: Upload Source Document */}
             <Card className={cn("transition-all duration-500", step < 2 && "opacity-50 pointer-events-none")}>
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>2</div>
-                        Fill Custom Form
+                        Upload Source Document
+                        {step > 2 && <Check className="ml-auto h-6 w-6 text-green-500" />}
                     </CardTitle>
-                    <CardDescription>Your custom form is ready to be filled. Upload your source documents to pre-fill the fields.</CardDescription>
+                    <CardDescription>Upload a source document (like an ID card) to automatically fill the form fields.</CardDescription>
                 </CardHeader>
                 {step === 2 && (
+                <>
                     <CardContent>
-                    {extractedSchema && (
-                        <Form {...form}>
-                            <form className="space-y-6">
-                                <div className="p-6 border rounded-lg bg-background/50">
-                                    <h3 className="text-lg font-semibold mb-4">Extracted Form Fields</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                        {extractedSchema.map((fieldName) => (
-                                            <FormField
-                                                key={fieldName}
-                                                control={form.control}
-                                                name={fieldName}
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-muted-foreground capitalize">{fieldName.toLowerCase()}</FormLabel>
-                                                        <FormControl>
-                                                            <div className="relative flex items-center">
-                                                                <Input placeholder={`Enter ${fieldName.toLowerCase()}`} {...field} />
-                                                                <VoiceInputButton
-                                                                    onTranscript={(transcript) => form.setValue(fieldName, transcript, { shouldValidate: true })}
-                                                                />
-                                                            </div>
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </form>
-                        </Form>
+                    {renderUploadCard(
+                        "Source Document",
+                        "Upload an image or PDF of your document to extract information.",
+                        docFile,
+                        docPreview,
+                        handleDocFileChange,
+                        clearDocPreview,
+                        "image/*,application/pdf",
+                        BookUser,
+                        docInputRef
                     )}
                     </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleMapDocument} disabled={!docFile || isMapping} className="w-full">
+                            {isMapping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+                            {isMapping ? "Filling Form..." : "Auto-Fill Form & Continue"}
+                        </Button>
+                    </CardFooter>
+                </>
                 )}
             </Card>
+
+            {/* Step 3: Review and Complete Custom Form */}
+            <Card className={cn("transition-all duration-500", step < 3 && "opacity-50 pointer-events-none")}>
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>3</div>
+                        Review, Complete & Download
+                        {step > 3 && <Check className="ml-auto h-6 w-6 text-green-500" />}
+                    </CardTitle>
+                    <CardDescription>Review the pre-filled data, complete any missing fields, and upload an optional photo.</CardDescription>
+                </CardHeader>
+                {step === 3 && (
+                    <>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start">
+                                <div className="md:col-span-3 space-y-6">
+                                {extractedSchema && (
+                                    <Form {...form}>
+                                        <form className="space-y-4 p-4 border rounded-lg bg-background/50">
+                                            <h3 className="text-lg font-semibold -mb-2">Extracted Form Fields</h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                                                {extractedSchema.map((fieldName) => (
+                                                    <FormField
+                                                        key={fieldName}
+                                                        control={form.control}
+                                                        name={fieldName}
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel className="text-muted-foreground capitalize">{fieldName.toLowerCase().replace(/_/g, ' ')}</FormLabel>
+                                                                <FormControl>
+                                                                    <div className="relative flex items-center">
+                                                                        <Input placeholder={`Enter ${fieldName.toLowerCase().replace(/_/g, ' ')}`} {...field} />
+                                                                        <VoiceInputButton
+                                                                            onTranscript={(transcript) => form.setValue(fieldName, transcript, { shouldValidate: true })}
+                                                                        />
+                                                                    </div>
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </form>
+                                    </Form>
+                                )}
+                                </div>
+                                <div className="md:col-span-2 space-y-4">
+                                    {renderUploadCard(
+                                        "Profile Photo (Optional)",
+                                        "Upload a passport-style photo.",
+                                        photoFile,
+                                        photoPreview,
+                                        handlePhotoFileChange,
+                                        clearPhotoPreview,
+                                        "image/*",
+                                        Camera,
+                                        photoInputRef
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                        <CardFooter>
+                            <Button onClick={handleDownloadPdf} disabled={!isFormFilled} size="lg" className="w-full">
+                                <Download className="mr-2 h-5 w-5" />
+                                {isFormFilled ? "Download as PDF" : "Fill all fields to download"}
+                            </Button>
+                        </CardFooter>
+                    </>
+                )}
+            </Card>
+
         </div>
     );
 }
@@ -725,5 +915,3 @@ export function FormAssistant() {
 
   return null;
 }
-
-    
