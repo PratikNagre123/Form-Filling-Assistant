@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -192,9 +191,8 @@ function DefaultFormFlow() {
         const data = form.getValues();
 
         doc.setFontSize(22);
-        const primaryColorHsl = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-        const colorString = `hsl(${primaryColorHsl.split(' ').join(',')})`;
-        doc.setTextColor(colorString);
+        // Use a reliable hex color code for jsPDF
+        doc.setTextColor("#00BFFF");
         doc.text("Extracted Form Data", 20, 20);
 
         doc.setFontSize(12);
@@ -495,7 +493,6 @@ function CustomFormFlow() {
                 form.register(field.name);
             });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [extractedSchema, form]);
     
     const handleCustomFormFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -640,9 +637,8 @@ function CustomFormFlow() {
         const data = form.getValues();
 
         doc.setFontSize(22);
-        const primaryColorHsl = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-        const colorString = `hsl(${primaryColorHsl.split(' ').join(',')})`;
-        doc.setTextColor(colorString);
+        // Use a reliable hex color code for jsPDF
+        doc.setTextColor("#00BFFF");
         doc.text("Custom Form Data", 20, 20);
         
         doc.setFontSize(12);
@@ -988,3 +984,5 @@ export function FormAssistant() {
 
   return null;
 }
+
+    
