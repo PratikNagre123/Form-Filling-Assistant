@@ -20,7 +20,7 @@ export function VoiceInputButton({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    setIsMounted(true); // Component has mounted on the client
+    setIsMounted(true); 
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -79,8 +79,6 @@ export function VoiceInputButton({
   };
 
   if (!isMounted) {
-    // Don't render anything on the server or during the initial client render.
-    // This ensures the server and client HTML match.
     return null;
   }
 
