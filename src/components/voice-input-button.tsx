@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,8 +21,7 @@ export function VoiceInputButton({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    setIsMounted(true); 
-
+    setIsMounted(true);
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       setIsSupported(true);
