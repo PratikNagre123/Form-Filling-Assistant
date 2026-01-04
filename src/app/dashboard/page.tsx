@@ -1,78 +1,20 @@
 
 import { FormAssistant } from '@/components/form-assistant';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { logoutAction } from '@/app/actions/auth';
-import { User } from 'lucide-react';
 
-export default async function Dashboard() {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('session_user_id');
-    const userName = cookieStore.get('session_user_name')?.value || 'User';
-
-    if (!userId) {
-        redirect('/login');
-    }
-
+export default function Dashboard() {
     return (
-        <div>
-            <header className="bg-card border-b">
-                <div className="container mx-auto max-w-4xl p-4 sm:p-6 lg:p-8 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl sm:text-4xl font-bold text-primary">
-                            AI Form Assistant
-                        </h1>
-                        <p className="text-muted-foreground mt-2 text-sm sm:text-base hidden sm:block">
-                            {/* Automatically populate forms by extracting data from your documents using AI. */}
-                            Welcome back, {userName}
-                        </p>
-                    </div>
+        <div className="space-y-8 animate-in fade-in-50 slide-in-from-bottom-4 duration-500">
+            {/* Hero Section */}
+            <div className="flex flex-col gap-2 md:items-center md:text-center py-6 md:py-10">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+                    Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">FormAssistant</span>
+                </h1>
+                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                    Simplify your paperwork. Select a workflow below to auto-fill documents or process generic forms with AI.
+                </p>
+            </div>
 
-                    <div className="flex items-center gap-4">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                                    <Avatar>
-                                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`} alt={userName} />
-                                        <AvatarFallback><User /></AvatarFallback>
-                                    </Avatar>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-56" align="end" forceMount>
-                                <DropdownMenuLabel className="font-normal">
-                                    <div className="flex flex-col space-y-1">
-                                        <p className="text-sm font-medium leading-none">{userName}</p>
-                                        <p className="text-xs leading-none text-muted-foreground">
-                                            User Account
-                                        </p>
-                                    </div>
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                    <form action={logoutAction} className="w-full">
-                                        <button type="submit" className="w-full text-left">
-                                            Log out
-                                        </button>
-                                    </form>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                </div>
-            </header>
-            <main className="container mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
-                <FormAssistant />
-            </main>
+            <FormAssistant />
         </div>
     );
 }

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indian Form Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h1 style="margin:0;">🇮🇳 Form Assistant</h1>
+      <button id="popout-btn" class="secondary-btn" style="padding: 4px 8px; font-size:12px; height:auto;" title="Keep Window Open">
+        ↗️ Pop Out
+      </button>
+    </div>
+
+    <div class="section api-section">
+      <input type="password" id="api-key-input" placeholder="Paste Gemini API Key">
+      <button id="save-api-key" class="secondary-btn">Save</button>
+    </div>
+
+    <div id="screen-welcome">
+      <div class="upload-label" style="cursor: default; background: var(--surface);">
+        <p style="color:#94a3b8; margin-bottom:12px;">What would you like to do?</p>
+        
+        <button id="pre-analyze-btn" class="primary-btn" style="background:#6366f1; margin-bottom: 8px;">
+          🔍 Scan Page for Fields
+        </button>
+        
+        <button id="skip-btn" class="secondary-btn">
+          Skip to Upload ➔
+        </button>
+      </div>
+
+      <div id="pre-analysis-result" class="hidden analysis-container">
+        <h3 class="analysis-header">Form Requires:</h3>
+        
+        <div id="field-list" class="extracted-list scrollable-list"></div>
+        
+        <div class="analysis-footer">
+          <button id="proceed-btn" class="primary-btn" style="background:#10b981;">
+            Upload Docs to Fill These ➔
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-workspace" class="hidden">
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="file-upload" accept="image/*" multiple hidden>
+        <label for="file-upload" class="upload-label">
+          <span class="icon">📄</span>
+          <span id="file-label">Upload Aadhaar / PAN</span>
+        </label>
+      </div>
+
+      <div id="status" class="status hidden">
+        <div class="spinner"></div>
+        <p id="status-text">Processing...</p>
+      </div>
+
+      <div id="result" class="result hidden">
+        <h3>Extracted Details</h3>
+        <div id="extracted-items" class="extracted-list"></div>
+        
+        <div id="pdf-banner" class="pdf-banner">
+          ⚠️ PDF Detected: Click items above to Copy & Paste
+        </div>
+        
+        <div class="button-group">
+          <button id="fill-btn" class="primary-btn">⚡ Auto-Fill Form</button>
+        </div>
+        <button id="clear-btn" class="secondary-btn" style="width:100%; margin-top:8px;">Start Over</button>
+      </div>
+      
+      <button id="back-btn" class="secondary-btn" style="margin-top:12px; border:none; color:#6366f1;">
+        ← Back to Home
+      </button>
+    </div>
+
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
