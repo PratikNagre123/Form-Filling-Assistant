@@ -221,7 +221,7 @@ export function LandingPage() {
                             {/* Profile 2 */}
                             <div className="bg-card rounded-xl p-8 shadow-sm border hover:shadow-md transition-all">
                                 <div className="w-24 h-24 mx-auto rounded-full bg-purple-100 flex items-center justify-center text-purple-600 mb-4 text-2xl font-bold">
-                                    TM
+                                    VB
                                 </div>
                                 <h3 className="text-xl font-bold mb-1">Veer Bobde</h3>
                                 <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mb-4">{t.co_developer}</p>
