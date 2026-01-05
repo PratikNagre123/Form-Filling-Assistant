@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { extractFormSchemaAction, mapDocumentToFormAction } from "@/app/actions";
 import { VoiceInputButton } from "@/components/voice-input-button";
+import { SpeakButton } from "@/components/speak-button";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "./ui/checkbox";
 import {
@@ -56,6 +57,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField as FormFieldType } from "./form-config";
 
+import { LanguageSelector } from "@/components/language-selector";
+import { useLanguageStore } from "@/lib/store";
+import { customFormTranslations, defaultFormTranslations } from "./translations";
+
 export function CustomFormFlow() {
     const [step, setStep] = useState(1);
     const [customFormFile, setCustomFormFile] = useState<File | null>(null);
@@ -66,6 +71,9 @@ export function CustomFormFlow() {
     const [docFile, setDocFile] = useState<File | null>(null);
     const [docPreview, setDocPreview] = useState<string | null>(null);
     const [isMapping, setIsMapping] = useState(false);
+
+    const { language, setLanguage } = useLanguageStore();
+    const t = { ...customFormTranslations["en-US"], ...(customFormTranslations[language] || {}) };
 
     // State for photo fields
     const [photoPreviews, setPhotoPreviews] = useState<Record<string, string | null>>({});
@@ -286,12 +294,38 @@ export function CustomFormFlow() {
             if (photoFields.length > 0) y += 60;
 
 
+            // Map for common fields to translation keys
+            const keyMap: Record<string, string> = {
+                name: "label_name",
+                full_name: "label_name",
+                dob: "label_dob",
+                date_of_birth: "label_dob",
+                gender: "label_gender",
+                address: "label_address",
+                aadhaar: "label_aadhaar",
+                aadhaar_number: "label_aadhaar",
+                pan: "label_pan",
+                pan_number: "label_pan",
+                mobile: "label_mobile",
+                email: "label_email"
+            };
+            const commonT = defaultFormTranslations[language] || defaultFormTranslations["en-US"];
+
             extractedSchema.forEach((field) => {
                 const fieldValue = data[field.name];
                 if (field.type !== 'photo') {
                     doc.setFont("helvetica", "bold");
-                    const labelOriginal = field.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
-                    const label = `${labelOriginal}:`;
+
+                    // Attempt to translate label
+                    const cleanName = field.name.toLowerCase().trim();
+                    const transKey = keyMap[cleanName];
+                    let labelText = field.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
+
+                    if (transKey && commonT[transKey]) {
+                        labelText = commonT[transKey];
+                    }
+
+                    const label = `${labelText}:`;
                     doc.text(label, 20, y);
 
                     const labelWidth = doc.getTextWidth(label);
@@ -370,10 +404,10 @@ export function CustomFormFlow() {
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <Upload className="w-10 h-10 mb-3 text-primary" />
                         <p className="mb-2 text-sm text-foreground">
-                            <span className="font-semibold">Click to upload</span> or drag and drop
+                            <span className="font-semibold">{t.click_to_upload}</span> {t.drag_drop}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                            {accept === "image/*" ? "Image files" : "Image or PDF files"}
+                            {accept === "image/*" ? t.image_files : t.image_pdf_files}
                         </p>
                     </div>
                 )}
@@ -429,22 +463,24 @@ export function CustomFormFlow() {
 
     return (
         <div className="space-y-8">
+            <div className="flex justify-end">
+                <LanguageSelector value={language} onChange={setLanguage} />
+            </div>
             {/* Step 1: Upload Custom Form */}
             <Card className={cn("transition-all duration-500 border-none shadow-lg hover:shadow-xl border-l-4 border-l-orange-500 bg-gradient-to-br from-white via-amber-50 to-orange-50 dark:from-slate-900 dark:to-slate-900", step < 1 && "opacity-50")}>
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground mr-3 font-bold text-lg">1</div>
-                        Upload Custom Form
-                        {step > 1 && <Check className="ml-auto h-6 w-6 text-green-500" />}
+                        {t.step_1_title}
                     </CardTitle>
-                    <CardDescription>Upload a PDF or an image of the form you want to fill out. We'll extract the fields for you.</CardDescription>
+                    <CardDescription>{t.step_1_desc}</CardDescription>
                 </CardHeader>
                 {step === 1 && (
                     <>
                         <CardContent>
                             {renderUploadCard(
-                                "Custom Form Document",
-                                "Upload the blank form here.",
+                                t.step_1_title,
+                                t.step_1_desc,
                                 customFormFile,
                                 customFormPreview,
                                 handleCustomFormFileChange,
@@ -457,7 +493,7 @@ export function CustomFormFlow() {
                         <CardFooter>
                             <Button onClick={handleExtractSchema} disabled={!customFormFile || isExtractingSchema} className="w-full">
                                 {isExtractingSchema ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
-                                {isExtractingSchema ? "Analyzing Form..." : "Extract Form Fields & Continue"}
+                                {isExtractingSchema ? t.checking_schema : t.btn_extract_fields}
                             </Button>
                         </CardFooter>
                     </>
@@ -471,9 +507,9 @@ export function CustomFormFlow() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>2</div>
-                        Fill & Download
+                        {t.fill_download_title}
                     </CardTitle>
-                    <CardDescription>Auto-fill details from your document, or enter them manually.</CardDescription>
+                    <CardDescription>{t.step_2_desc}</CardDescription>
                 </CardHeader>
                 {step === 2 && (
                     <CardContent className="space-y-8">
@@ -481,13 +517,13 @@ export function CustomFormFlow() {
                         <div className="rounded-lg border bg-muted/30 p-4">
                             <h4 className="font-semibold mb-4 flex items-center">
                                 <BookUser className="mr-2 h-5 w-5 text-primary" />
-                                Auto-fill from Document
+                                {t.autofill_title}
                             </h4>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
                                 <div>
                                     {renderUploadCard(
-                                        "Source Document",
-                                        "Upload ID card or document.",
+                                        t.step_3_title,
+                                        t.step_3_desc,
                                         docFile,
                                         docPreview,
                                         handleDocFileChange,
@@ -500,7 +536,7 @@ export function CustomFormFlow() {
                                 </div>
                                 <Button onClick={handleMapDocument} disabled={!docFile || isMapping} className="w-full h-14 mb-[4px]">
                                     {isMapping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
-                                    {isMapping ? "Filling..." : "Auto-Fill Fields"}
+                                    {isMapping ? t.mapping_data : t.btn_map_data}
                                 </Button>
                             </div>
                         </div>
@@ -508,7 +544,7 @@ export function CustomFormFlow() {
                         {/* Form Fields Section */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Form Details</h3>
+                                <h3 className="text-lg font-semibold">{t.form_details}</h3>
                             </div>
                             <Form {...form}>
                                 <form className="space-y-6">
@@ -557,6 +593,7 @@ export function CustomFormFlow() {
                                                             <FormItem className={cn("transition-all duration-500", isHighlighted && "scale-[1.02]")}>
                                                                 <FormLabel className={cn("capitalize no-underline", isHighlighted ? "text-green-600 font-bold" : "text-muted-foreground")}>
                                                                     {field.name.toLowerCase().replace(/_/g, ' ')}
+                                                                    <SpeakButton text={field.name.replace(/_/g, ' ')} lang={language} />
                                                                 </FormLabel>
                                                                 <FormControl>
                                                                     <div className="relative flex items-center">
@@ -568,6 +605,7 @@ export function CustomFormFlow() {
                                                                             type={field.type === 'date' ? 'date' : 'text'}
                                                                         />
                                                                         <VoiceInputButton
+                                                                            lang={language}
                                                                             onTranscript={(transcript) => form.setValue(field.name, transcript, { shouldValidate: true })}
                                                                         />
                                                                     </div>
@@ -586,20 +624,20 @@ export function CustomFormFlow() {
                                             <DialogTrigger asChild>
                                                 <Button variant="outline" className="border-dashed">
                                                     <Plus className="mr-2 h-4 w-4" />
-                                                    Add Another Field
+                                                    {t.add_field}
                                                 </Button>
                                             </DialogTrigger>
                                             <DialogContent>
                                                 <DialogHeader>
-                                                    <DialogTitle>Add New Field</DialogTitle>
+                                                    <DialogTitle>{t.add_new_field}</DialogTitle>
                                                     <DialogDescription>
-                                                        Manually add a missing field to the form.
+                                                        {t.add_field_desc}
                                                     </DialogDescription>
                                                 </DialogHeader>
                                                 <div className="grid gap-4 py-4">
                                                     <div className="grid grid-cols-4 items-center gap-4">
                                                         <Label htmlFor="name" className="text-right">
-                                                            Name
+                                                            {t.label_field_name}
                                                         </Label>
                                                         <Input
                                                             id="name"
@@ -611,17 +649,17 @@ export function CustomFormFlow() {
                                                     </div>
                                                     <div className="grid grid-cols-4 items-center gap-4">
                                                         <Label htmlFor="type" className="text-right">
-                                                            Type
+                                                            {t.label_field_type}
                                                         </Label>
                                                         <Select value={newFieldType} onValueChange={(val: any) => setNewFieldType(val)}>
                                                             <SelectTrigger className="col-span-3">
-                                                                <SelectValue placeholder="Select type" />
+                                                                <SelectValue placeholder={t.select_type} />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="text">Text</SelectItem>
-                                                                <SelectItem value="date">Date</SelectItem>
-                                                                <SelectItem value="checkbox">Checkbox</SelectItem>
-                                                                <SelectItem value="photo">Photo</SelectItem>
+                                                                <SelectItem value="text">{t.type_text}</SelectItem>
+                                                                <SelectItem value="date">{t.type_date}</SelectItem>
+                                                                <SelectItem value="checkbox">{t.type_checkbox}</SelectItem>
+                                                                <SelectItem value="photo">{t.type_photo}</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
@@ -638,7 +676,7 @@ export function CustomFormFlow() {
                                                             setNewFieldType("text");
                                                             toast({ title: "Field Added", description: `${newFieldName} has been added to the form.` });
                                                         }
-                                                    }}>Add Field</Button>
+                                                    }}>{t.add_field}</Button>
                                                 </DialogFooter>
                                             </DialogContent>
                                         </Dialog>
@@ -651,7 +689,7 @@ export function CustomFormFlow() {
                         <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
                             <Button onClick={handleDownloadPdf} size="lg" className="w-full sm:w-auto ml-auto">
                                 <Download className="mr-2 h-5 w-5" />
-                                Download as PDF
+                                {t.btn_download_pdf}
                             </Button>
                         </div>
                     </CardContent>

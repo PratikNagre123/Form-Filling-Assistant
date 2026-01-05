@@ -8,15 +8,16 @@
  * - ExtractDataFromDocumentOutput - The return type for the extractDataFromDocument function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const ExtractDataFromDocumentInputSchema = z.object({
   documentDataUri: z
     .string()
     .describe(
-      'A document, as a data URI that must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\'.' 
+      'A document, as a data URI that must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\'.'
     ),
+  targetLanguage: z.string().optional().default('English').describe('The target language to translate extracted information into.')
 });
 export type ExtractDataFromDocumentInput = z.infer<typeof ExtractDataFromDocumentInputSchema>;
 
@@ -37,11 +38,15 @@ export async function extractDataFromDocument(input: ExtractDataFromDocumentInpu
 
 const extractDataFromDocumentPrompt = ai.definePrompt({
   name: 'extractDataFromDocumentPrompt',
-  input: {schema: ExtractDataFromDocumentInputSchema},
-  output: {schema: ExtractDataFromDocumentOutputSchema},
-  prompt: `You are an expert data extraction specialist.
-
-  Extract the following information from the document provided, if present. Return a JSON object with the following keys:
+  input: { schema: ExtractDataFromDocumentInputSchema },
+  output: { schema: ExtractDataFromDocumentOutputSchema },
+  prompt: `You are an expert data extraction specialist capable of reading documents in multiple languages.
+  
+  Extract the following information from the document provided.
+  Translate/transliterate the extracted values to {{targetLanguage}}.
+  For example, if the target language is Hindi, the Name and Address should be in Hindi script. Dates should standardized to YYYY-MM-DD.
+  
+  Return a JSON object with the following keys:
     - name: The name extracted from the document.
     - dob: The date of birth extracted from the document in YYYY-MM-DD format.
     - gender: The gender extracted from the document.
@@ -64,7 +69,7 @@ const extractDataFromDocumentFlow = ai.defineFlow(
     outputSchema: ExtractDataFromDocumentOutputSchema,
   },
   async input => {
-    const {output} = await extractDataFromDocumentPrompt(input);
+    const { output } = await extractDataFromDocumentPrompt(input);
     return output!;
   }
 );

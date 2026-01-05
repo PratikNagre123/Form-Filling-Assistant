@@ -8,13 +8,14 @@ import { mapDocumentToForm } from '@/ai/flows/map-document-to-form';
 import type { MapDocumentToFormOutput } from '@/ai/flows/map-document-to-form';
 
 export async function extractDataAction(
-  documentDataUri: string
+  documentDataUri: string,
+  targetLanguage: string = 'English'
 ): Promise<ExtractDataFromDocumentOutput | { error: string }> {
   try {
     if (!documentDataUri) {
       return { error: 'Document data is missing.' };
     }
-    const extractedData = await extractDataFromDocument({ documentDataUri });
+    const extractedData = await extractDataFromDocument({ documentDataUri, targetLanguage });
     return extractedData;
   } catch (error) {
     console.error('Error extracting data from document:', error);
@@ -46,7 +47,7 @@ export async function mapDocumentToFormAction(
       return { error: 'Source document data is missing.' };
     }
     if (!formFields || formFields.length === 0) {
-        return { error: 'No form fields provided to map to.' };
+      return { error: 'No form fields provided to map to.' };
     }
     const result = await mapDocumentToForm({ documentDataUri, formFields });
     return result;

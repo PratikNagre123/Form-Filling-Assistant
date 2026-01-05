@@ -15,18 +15,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { logoutAction } from "@/app/actions/auth";
+import { LanguageSelector } from "@/components/language-selector";
+import { useLanguageStore } from "@/lib/store";
+import { dashboardTranslations } from "@/components/translations";
 
 export function AppNavbar({ userName = "User" }: { userName?: string }) {
     const pathname = usePathname();
+    const { language, setLanguage } = useLanguageStore();
+    const t = dashboardTranslations[language] || dashboardTranslations["en-US"];
 
     const navItems = [
         {
-            name: "Home",
+            name: t.nav_home,
             href: "/dashboard",
             icon: Home,
         },
         {
-            name: "Instructions",
+            name: t.nav_instructions,
             href: "/instructions",
             icon: HelpCircle,
         },
@@ -67,6 +72,7 @@ export function AppNavbar({ userName = "User" }: { userName?: string }) {
 
                 {/* User Menu */}
                 <div className="flex items-center gap-4">
+                    <LanguageSelector value={language} onChange={setLanguage} />
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-primary/10">

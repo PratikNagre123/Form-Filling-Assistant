@@ -41,8 +41,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { extractDataAction } from "@/app/actions";
 import { VoiceInputButton } from "@/components/voice-input-button";
+import { SpeakButton } from "@/components/speak-button";
 import { cn } from "@/lib/utils";
 import { formSchema, FormValues, allFields, fieldConfig } from "./form-config";
+import { LanguageSelector } from "@/components/language-selector";
+import { defaultFormTranslations } from "./translations";
+
+import { useLanguageStore } from "@/lib/store";
 
 export function DefaultFormFlow() {
     const [step, setStep] = useState(1);
@@ -51,6 +56,11 @@ export function DefaultFormFlow() {
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [isExtracting, setIsExtracting] = useState(false);
+
+    const { language, setLanguage } = useLanguageStore();
+
+    // Fallback to English if translation is missing
+    const t = defaultFormTranslations[language] || defaultFormTranslations["en-US"];
 
     const { toast } = useToast();
     const docInputRef = useRef<HTMLInputElement>(null);
@@ -106,7 +116,22 @@ export function DefaultFormFlow() {
         reader.readAsDataURL(docFile);
         reader.onload = async () => {
             const dataUrl = reader.result as string;
-            const result = await extractDataAction(dataUrl);
+
+            // Map locale code to language name for the AI prompt
+            const langNameMap: Record<string, string> = {
+                "en-US": "English",
+                "hi-IN": "Hindi",
+                "mr-IN": "Marathi",
+                "ta-IN": "Tamil",
+                "te-IN": "Telugu",
+                "kn-IN": "Kannada",
+                "bn-IN": "Bengali",
+                "gu-IN": "Gujarati",
+                "ml-IN": "Malayalam"
+            };
+            const targetLangName = langNameMap[language] || "English";
+
+            const result = await extractDataAction(dataUrl, targetLangName);
 
             setIsExtracting(false);
             if ("error" in result) {
@@ -166,11 +191,26 @@ export function DefaultFormFlow() {
             }
         }
 
+        // Mapping from form field keys to translation keys
+        const keyMap: Record<string, string> = {
+            name: "label_name",
+            dob: "label_dob",
+            gender: "label_gender",
+            address: "label_address",
+            aadhaar: "label_aadhaar",
+            pan: "label_pan"
+        };
+
         allFields.forEach((key) => {
             const fieldData = data[key];
             if (fieldData) {
                 doc.setFont("helvetica", "bold");
-                doc.text(`${fieldConfig[key].label}:`, 20, y);
+
+                // Use translated label if available, otherwise fallback to config label
+                const labelKey = keyMap[key];
+                const label = (labelKey && t[labelKey]) ? t[labelKey] : fieldConfig[key].label;
+
+                doc.text(`${label}:`, 20, y);
                 doc.setFont("helvetica", "normal");
                 const textDimensions = doc.getTextDimensions(fieldData, { maxWidth: 110 });
                 doc.text(fieldData, 70, y, { maxWidth: 110 });
@@ -193,11 +233,17 @@ export function DefaultFormFlow() {
         if (photoInputRef.current) photoInputRef.current.value = "";
     }
 
+
+
     const renderFields = () => {
         return allFields.map((fieldName) => {
             const config = fieldConfig[fieldName];
             if (!config) return null;
-            const { icon: Icon, label } = config;
+            const { icon: Icon } = config; // Removed 'label' from destructuring to avoid conflict
+
+            const labelKey = `label_${fieldName}` as keyof typeof t;
+            const label = t[labelKey] || config.label;
+
             const isAddress = fieldName === 'address';
             return (
                 <FormField
@@ -209,25 +255,28 @@ export function DefaultFormFlow() {
                             <FormLabel className="flex items-center text-muted-foreground">
                                 <Icon className="h-4 w-4 mr-2" />
                                 {label}
+                                <SpeakButton text={label} lang={language} />
                             </FormLabel>
                             <FormControl>
                                 <div className="relative flex items-center">
                                     {isAddress ? (
                                         <Textarea
-                                            placeholder={`Enter ${label.toLowerCase()}`}
+                                            placeholder={`${t.enter_placeholder || "Enter"} ${label.toLowerCase()}`}
                                             {...field}
                                             value={field.value ?? ''}
                                             className="bg-background/80"
                                         />
                                     ) : (
                                         <Input
-                                            placeholder={`Enter ${label.toLowerCase()}`}
+                                            placeholder={`${t.enter_placeholder || "Enter"} ${label.toLowerCase()}`}
                                             {...field}
                                             value={field.value ?? ''}
                                             className="bg-background/80"
+                                            readOnly={isAddress ? false : undefined} // Example constraint
                                         />
                                     )}
                                     <VoiceInputButton
+                                        lang={language}
                                         onTranscript={(transcript) => form.setValue(fieldName, transcript, { shouldValidate: true })}
                                     />
                                 </div>
@@ -281,7 +330,7 @@ export function DefaultFormFlow() {
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <Upload className="w-10 h-10 mb-3 text-primary" />
                         <p className="mb-2 text-sm text-foreground">
-                            <span className="font-semibold">Click to upload</span> or drag and drop
+                            <span className="font-semibold">{t.click_to_upload || "Click to upload"}</span> {t.drag_drop || "or drag and drop"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {accept === "image/*" ? "Image files" : "Image or PDF files"}
@@ -301,22 +350,26 @@ export function DefaultFormFlow() {
 
     return (
         <div className="space-y-8">
+            <div className="flex justify-end">
+                <LanguageSelector value={language} onChange={setLanguage} />
+            </div>
+
             <Card className={cn("transition-all duration-500 border-none shadow-lg hover:shadow-xl border-l-4 border-l-blue-500 bg-gradient-to-br from-white via-cyan-50 to-blue-50 dark:from-slate-900 dark:to-slate-900", step < 1 && "opacity-50")}>
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground mr-3 font-bold text-lg">1</div>
-                        Upload Source Document
+                        {t.upload_title_1 || "Upload Source Document"}
                         {step > 1 && <Check className="ml-auto h-6 w-6 text-green-500" />}
                     </CardTitle>
-                    <CardDescription>Upload an ID card, form, or any document to extract information from.</CardDescription>
+                    <CardDescription>{t.upload_desc_1 || "Upload an ID card, form, or any document to extract information from."}</CardDescription>
                 </CardHeader>
                 {
                     step === 1 && (
                         <>
                             <CardContent>
                                 {renderUploadCard(
-                                    "Source Document",
-                                    "Upload an image or PDF of your document to extract information.",
+                                    t.upload_card_title || "Source Document",
+                                    t.upload_card_desc || "Upload an image or PDF of your document to extract information.",
                                     docFile,
                                     docPreview,
                                     handleDocFileChange,
@@ -337,7 +390,7 @@ export function DefaultFormFlow() {
                                     ) : (
                                         <ArrowRight className="mr-2 h-4 w-4" />
                                     )}
-                                    {isExtracting ? "Extracting..." : "Extract & Continue"}
+                                    {isExtracting ? (t.extracting || "Extracting...") : (t.extract_button || "Extract & Continue")}
                                 </Button>
                             </CardFooter>
                         </>
@@ -349,10 +402,10 @@ export function DefaultFormFlow() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>2</div>
-                        Review & Complete
+                        {t.review_title || "Review & Complete"}
                         {step > 2 && <Check className="ml-auto h-6 w-6 text-green-500" />}
                     </CardTitle>
-                    <CardDescription>Review the extracted data, make corrections, and upload a profile photo if needed.</CardDescription>
+                    <CardDescription>{t.review_desc || "Review the extracted data, make corrections, and upload a profile photo if needed."}</CardDescription>
                 </CardHeader>
                 {step === 2 && (
                     <>
@@ -367,8 +420,8 @@ export function DefaultFormFlow() {
                                 </div>
                                 <div className="md:col-span-2 space-y-4">
                                     {renderUploadCard(
-                                        "Profile Photo (Optional)",
-                                        "Upload a passport-style photo for the form.",
+                                        t.photo_title || "Profile Photo (Optional)",
+                                        t.photo_desc || "Upload a passport-style photo for the form.",
                                         photoFile,
                                         photoPreview,
                                         handlePhotoFileChange,
@@ -383,7 +436,7 @@ export function DefaultFormFlow() {
                         <CardFooter>
                             <Button onClick={() => setStep(3)} className="w-full">
                                 <Check className="mr-2 h-4 w-4" />
-                                Confirm & Proceed to Download
+                                {t.confirm_button || "Confirm & Proceed to Download"}
                             </Button>
                         </CardFooter>
                     </>
@@ -394,16 +447,16 @@ export function DefaultFormFlow() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <div className={cn("flex items-center justify-center w-8 h-8 rounded-full mr-3 font-bold text-lg", step === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>3</div>
-                        Download
+                        {t.download_title || "Download"}
                     </CardTitle>
-                    <CardDescription>Your form data is ready. Download it as a PDF.</CardDescription>
+                    <CardDescription>{t.download_desc || "Your form data is ready. Download it as a PDF."}</CardDescription>
                 </CardHeader>
                 {step === 3 && (
                     <CardContent>
                         <div className="flex items-center justify-center p-8 bg-muted/50 rounded-lg">
                             <Button onClick={handleDownloadPdf} size="lg">
                                 <Download className="mr-2 h-5 w-5" />
-                                Download as PDF
+                                {t.download_button || "Download as PDF"}
                             </Button>
                         </div>
                     </CardContent>

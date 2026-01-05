@@ -57,6 +57,7 @@ const mapDocumentToFormPrompt = ai.definePrompt({
   {{/each}}
 
   Now, analyze the following source document and extract the information that corresponds to each of the form fields listed above.
+  The document may be in an Indian language (Hindi, Marathi, Tamil, etc.). If so, extract the relevant data and translate/transliterate it to matching the form's expected language (usually English) unless otherwise specified.
 
   Source Document:
   {{media url=documentDataUri}}

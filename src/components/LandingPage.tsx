@@ -5,8 +5,14 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Zap, Shield, PlayCircle, Chrome, Download, Github, Linkedin, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExtensionInstructions, WebAppInstructions } from "@/components/instructions-content";
+import { LanguageSelector } from "@/components/language-selector";
+import { useLanguageStore } from "@/lib/store";
+import { landingPageTranslations } from "@/components/translations";
 
 export function LandingPage() {
+    const { language, setLanguage } = useLanguageStore();
+    const t = landingPageTranslations[language] || landingPageTranslations["en-US"];
+
     const handleExtensionClick = () => {
         const link = document.createElement("a");
         link.href = "/extension.zip";
@@ -22,11 +28,9 @@ export function LandingPage() {
         }
     };
 
-
-
     return (
         <div className="min-h-screen bg-background text-foreground font-body selection:bg-blue-100 selection:text-blue-900">
-            {/* ... keeping existing header ... */}
+            {/* Header */}
             <header className="sticky top-4 z-50 w-full px-4">
                 <div className="container mx-auto max-w-6xl rounded-full border bg-background/80 backdrop-blur-md shadow-sm px-6 h-16 flex items-center justify-between supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
@@ -35,38 +39,36 @@ export function LandingPage() {
                         </div>
                         <span>FormAssistant</span>
                     </div>
-                    <div className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground">
+                    <div className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground items-center">
                         <a href="#features" className="hover:text-foreground transition-colors">Features</a>
                         <a href="#instructions-section" className="hover:text-foreground transition-colors">Setup Guide</a>
                         <a href="#about" className="hover:text-foreground transition-colors">About</a>
                     </div>
                     <div className="flex items-center gap-4">
+                        <LanguageSelector value={language} onChange={setLanguage} />
                         <Link href="/login">
                             <Button variant="ghost" size="sm" className="hidden sm:flex hover:bg-muted font-medium">Log in</Button>
                         </Link>
                         <Link href="/register">
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 font-medium">Get Started</Button>
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 font-medium">{t.get_started}</Button>
                         </Link>
                     </div>
                 </div>
             </header>
 
             <main>
-                {/* ... existing hero and other sections ... */}
-
                 {/* Hero Section */}
                 <section className="relative overflow-hidden py-20 lg:py-32 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-950/20">
-                    {/* ... (Hero content truncated for brevity, assume matches existing) ... */}
                     <div className="container mx-auto px-4 text-center relative z-10">
                         <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <span className="flex h-2 w-2 rounded-full bg-blue-600 mr-2 animate-pulse"></span>
                             New: Custom Form Support
                         </div>
                         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-200 dark:to-white animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            Fill Forms 10x Faster <br className="hidden md:block" /> with AI Intelligence
+                            {t.hero_title}
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
-                            Stop typing the same data repeatedly. Securely extract details from your documents and auto-fill any web form instantly.
+                            {t.hero_desc}
                         </p>
 
                         {/* Fork in the Road: Two Ways to Use */}
@@ -85,7 +87,7 @@ export function LandingPage() {
                                     </p>
                                     <Link href="/login" className="mt-auto w-full">
                                         <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white" size="lg">
-                                            Start Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+                                            {t.open_dashboard} <ArrowRight className="w-4 h-4 ml-2" />
                                         </Button>
                                     </Link>
                                 </div>
@@ -126,9 +128,9 @@ export function LandingPage() {
                         </div>
                         <div className="grid md:grid-cols-3 gap-8">
                             {[
-                                { title: "Smart Extraction", icon: Zap, text: "Advanced OCR technology instantly reads and digitizes data from image IDs and PDFs." },
-                                { title: "Secure Storage", icon: Shield, text: "Your data is encrypted locally. We never store your personal documents on our servers." },
-                                { title: "One-Click Fill", icon: CheckCircle2, text: "Populate entire forms in a single click using the browser extension." }
+                                { title: t.feature_1_title, icon: Zap, text: t.feature_1_desc },
+                                { title: t.feature_2_title, icon: Shield, text: t.feature_2_desc },
+                                { title: t.feature_3_title, icon: CheckCircle2, text: t.feature_3_desc }
                             ].map((feature, i) => (
                                 <div key={i} className="bg-card p-6 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
                                     <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 mb-4">
@@ -247,7 +249,7 @@ export function LandingPage() {
 
                         <div className="border-t pt-8">
                             <p className="text-sm text-muted-foreground">
-                                &copy; 2024 FormAssistant. All rights reserved. <br />
+                                &copy; 2024 FormAssistant. {t.footer_rights} <br />
                                 Built for speed, security, and simplicity.
                             </p>
                         </div>
